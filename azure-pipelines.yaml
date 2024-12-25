@@ -1,0 +1,10 @@
+---
+name: Spc-stage
+pool: Default
+trigger: none
+pr: 
+  - main
+stages:
+  - stage: 'Build'
+    displayName: 'Docker 'Build'
+    variables
