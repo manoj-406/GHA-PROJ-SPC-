@@ -2,25 +2,14 @@ name: Spc-stage
 
 pool: Default
 
-trigger: none  
 pr:
   branches:
     include:
       - Develop  
 
 variables:
-  - name: IMAGE_NAME
-    value: 'manoj406/spc-cicd:1.0'
-    readonly: true
-  
-  - name: DOCKER_REGISTRY
-    value: 'manoj406'
-    readonly: true
-
-  - name: REGISTRY_IMAGE
-    value: 'manoj406/spc-cicd:1.0'
-    readonly: true
-
+      IMAGE_NAME: "spc"
+      IMAGE_TAG: "$(Build.BuildId)"
 
 stages:
   - stage: 'Build'
@@ -29,12 +18,19 @@ stages:
       - job: 'Build_Docker_Image'  
         displayName: 'Build Docker Image'
         steps:
-          - task: Docker@2 
 
           - script: |
-              docker build -t $(REGISTRY_IMAGE) .
+              docker build -t $(IMAGE_NAME):$(IMAGE_TAG) .
+              docker image ls
             displayName: 'Build Docker Image'
-    
+
+          - script: |
+                sudo apt-get install wget apt-transport-https gnupg lsb-release
+                wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
+                echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
+                sudo apt-get update && sudo apt-get install trivy -y
+
+
   - stage: 'Scan'
     displayName: 'Trivy_Scan'  
     jobs:
@@ -50,7 +46,7 @@ stages:
           - task: CmdLine@2
 
           - script: |
-              trivy image --format template --template @/home/ubuntu/templates/junit.tpl -o TEST-trivy_report.xml $(IMAGE_NAME) 
+              trivy image --format template --template @/home/ubuntu/templates/junit.tpl -o TEST-trivy_report.xml $(IMAGE_NAME):$(IMAGE_TAG) 
             displayName: 'Scanning_Docker_image'
 
           - task: CopyFiles@2
