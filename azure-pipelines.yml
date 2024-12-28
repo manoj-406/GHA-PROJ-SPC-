@@ -1,25 +1,70 @@
----
-  name: Spc-stage
-  pool: Default
-  trigger: none
-  pr: 
-    - main
-  variables:
-        IMAGE_NAME: 'manoj406/spc-cicd:1.0'
-        DOCKER_REGISTRY: 'manoj406'
-        REGISTRY_IMAGE: 'manoj406/spc-cicd:1.0'
-  stages:
-    - stage: 'Build'
-      displayName: 'Docker Build'
-      jobs:
-        - job: 'Buid Docker Image'
-          displayName: 'Buid Docker Image'
-          steps:
-            
-            - task: Checkout@1
+name: Spc-stage
+
+pool: Default
+
+trigger: none  
+pr:
+  branches:
+    include:
+      - Develop  
+
+variables:
+  - name: IMAGE_NAME
+    value: 'manoj406/spc-cicd:1.0'
+    readonly: true
   
-            - script: |
-                docker build -t 'manoj406/spc-cicd:1.0' 1.0'
-              displayName: 'Build Docker Image'
-  
-  
+  - name: DOCKER_REGISTRY
+    value: 'manoj406'
+    readonly: true
+
+  - name: REGISTRY_IMAGE
+    value: 'manoj406/spc-cicd:1.0'
+    readonly: true
+
+
+stages:
+  - stage: 'Build'
+    displayName: 'Docker Build'
+    jobs:
+      - job: 'Build_Docker_Image'  
+        displayName: 'Build Docker Image'
+        steps:
+          - task: Docker@2 
+
+          - script: |
+              docker build -t $(REGISTRY_IMAGE) .
+            displayName: 'Build Docker Image'
+    
+  - stage: 'Scan'
+    displayName: 'Trivy_Scan'  
+    jobs:
+      - job: 'Scan_Docker_Image'
+        displayName: 'trivy'
+        steps:
+          - script: |
+              mkdir -p templates
+              curl -L https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/junit.tpl -o templates/junit.tpl
+            displayName: 'Download Trivy JUnit Template'
+
+
+          - task: CmdLine@2
+
+          - script: |
+              trivy image --format template --template @/home/ubuntu/templates/junit.tpl -o TEST-trivy_report.xml $(IMAGE_NAME) 
+            displayName: 'Scanning_Docker_image'
+
+          - task: CopyFiles@2
+            inputs: 
+              Contents: '**/TEST-trivy_report.xml'
+              TargetFolder: $(Build.ArtifactStagingDirectory)
+          
+          - script: |
+              cat $(Build.ArtifactStagingDirectory)/TEST-trivy_report.xml
+            displayName: 'Verify Test Results File'
+          
+
+          - task: PublishTestResults@1
+            inputs:
+              testResultsFiles: '**/TEST-*.xml'
+
+              
